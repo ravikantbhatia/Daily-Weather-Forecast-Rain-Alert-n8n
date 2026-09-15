@@ -1,0 +1,205 @@
+{
+  "name": "Daily Weather Forecast & Rain Alert Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "id": "6b87a705-96aa-4543-b17f-b2f73d01c140",
+      "name": "Daily 7 AM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "5DayForecast",
+        "locationSelection": "zipCode",
+        "zipCode": "174001,IN"
+      },
+      "id": "b3bcdacf-f1a5-439a-929b-a866e3793a67",
+      "name": "Get 5-Day Weather Forecast",
+      "type": "n8n-nodes-base.openWeatherMap",
+      "typeVersion": 1,
+      "position": [
+        176,
+        0
+      ],
+      "credentials": {
+        "openWeatherMapApi": {
+          "id": "MCLUE0A4c0RpfHce",
+          "name": "OpenWeatherMap account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nconst timeZone = 'Asia/Kolkata';\n\nconst dateFormatter = new Intl.DateTimeFormat('en-CA', {\n  timeZone,\n  year: 'numeric',\n  month: '2-digit',\n  day: '2-digit'\n});\n\nconst today = dateFormatter.format(new Date());\n\nconst todayForecasts = data.list.filter(item => {\n  const forecastDate = dateFormatter.format(new Date(item.dt * 1000));\n  return forecastDate === today;\n});\n\nconst rainConditions = ['Rain', 'Drizzle', 'Thunderstorm'];\n\nconst rainExpected = todayForecasts.some(item =>\n  rainConditions.includes(item.weather?.[0]?.main)\n);\n\nconst firstForecast = todayForecasts[0];\n\nreturn [\n  {\n    json: {\n      city: data.city?.name,\n      country: data.city?.country,\n\n      rainExpected,\n\n      condition: firstForecast?.weather?.[0]?.description,\n\n      temp: firstForecast?.main?.temp,\n      feels_like: firstForecast?.main?.feels_like,\n\n      temp_min: Math.min(\n        ...todayForecasts.map(item => item.main.temp_min)\n      ),\n\n      temp_max: Math.max(\n        ...todayForecasts.map(item => item.main.temp_max)\n      ),\n\n      humidity: firstForecast?.main?.humidity,\n      pressure: firstForecast?.main?.pressure,\n\n      wind_speed: firstForecast?.wind?.speed,\n      cloudiness: firstForecast?.clouds?.all\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ],
+      "id": "5b385cb3-4631-4d2b-bf35-0c6de1c9bc46",
+      "name": "Process Today's Forecast"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c8178754-45d2-4b0f-b3dd-a0a1f65f1993",
+              "leftValue": "={{ $json.rainExpected }}",
+              "rightValue": "{{ ['Rain', 'Drizzle', 'Thunderstorm'].includes($json.weather[0].main) }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8566411f-93d2-48df-b2b0-c634139b6846",
+      "name": "Rain Expected?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        576,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "9816115562r@gmail.com",
+        "subject": "=🌧️ Weather Alert: Rain Expected Today - {{ $json.city }}",
+        "message": "=<h2>🌧️ Rain Alert - {{ $json.city }}</h2>\n\n<p>\n  <strong>Good Morning!</strong>\n  Rain is expected today. Please plan accordingly.\n</p>\n\n<h3>🌡️ Weather Details</h3>\n\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\">\n  <tr>\n    <th>Condition</th>\n    <td>{{ $json.condition }}</td>\n  </tr>\n  <tr>\n    <th>Temperature</th>\n    <td>{{ $json.temp }} °C</td>\n  </tr>\n  <tr>\n    <th>Feels Like</th>\n    <td>{{ $json.feels_like }} °C</td>\n  </tr>\n  <tr>\n    <th>Minimum Temperature</th>\n    <td>{{ $json.temp_min }} °C</td>\n  </tr>\n  <tr>\n    <th>Maximum Temperature</th>\n    <td>{{ $json.temp_max }} °C</td>\n  </tr>\n  <tr>\n    <th>Humidity</th>\n    <td>{{ $json.humidity }}%</td>\n  </tr>\n  <tr>\n    <th>Pressure</th>\n    <td>{{ $json.pressure }} hPa</td>\n  </tr>\n  <tr>\n    <th>Wind Speed</th>\n    <td>{{ $json.wind_speed }} m/s</td>\n  </tr>\n  <tr>\n    <th>Cloudiness</th>\n    <td>{{ $json.cloudiness }}%</td>\n  </tr>\n</table>\n\n<p>☔ <strong>Don't forget your umbrella!</strong></p>",
+        "options": {}
+      },
+      "id": "d3d444c2-e207-4250-be93-b293e74989e9",
+      "name": "Send Rain Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        752,
+        -112
+      ],
+      "webhookId": "c2663b42-6902-4076-bc6c-ed413c71a28c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "7R60Tqdd447zCYl5",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "9816115562r@gmail.com",
+        "subject": "=☀️ Weather Update: No Rain Expected Today - {{ $json.city }}",
+        "message": "=<h2>☀️ Weather Update - {{ $json.city }}</h2>\n\n<p>\n  <strong>Good Morning!</strong>\n  No rain is expected today based on the forecast.\n</p>\n\n<h3>🌡️ Weather Details</h3>\n\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\">\n  <tr>\n    <th>Condition</th>\n    <td>{{ $json.condition }}</td>\n  </tr>\n  <tr>\n    <th>Temperature</th>\n    <td>{{ $json.temp }} °C</td>\n  </tr>\n  <tr>\n    <th>Feels Like</th>\n    <td>{{ $json.feels_like }} °C</td>\n  </tr>\n  <tr>\n    <th>Minimum Temperature</th>\n    <td>{{ $json.temp_min }} °C</td>\n  </tr>\n  <tr>\n    <th>Maximum Temperature</th>\n    <td>{{ $json.temp_max }} °C</td>\n  </tr>\n  <tr>\n    <th>Humidity</th>\n    <td>{{ $json.humidity }}%</td>\n  </tr>\n  <tr>\n    <th>Pressure</th>\n    <td>{{ $json.pressure }} hPa</td>\n  </tr>\n  <tr>\n    <th>Wind Speed</th>\n    <td>{{ $json.wind_speed }} m/s</td>\n  </tr>\n  <tr>\n    <th>Cloudiness</th>\n    <td>{{ $json.cloudiness }}%</td>\n  </tr>\n</table>\n\n<p>🌤️ <strong>Looks like a good day ahead!</strong></p>",
+        "options": {}
+      },
+      "id": "006ffef0-e2e4-4cf3-8ceb-9b3413e6eacc",
+      "name": "Send Weather Update",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        752,
+        96
+      ],
+      "webhookId": "ee451f4e-d558-4fda-888b-b58f00c796f6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "7R60Tqdd447zCYl5",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily 7 AM Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get 5-Day Weather Forecast",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get 5-Day Weather Forecast": {
+      "main": [
+        [
+          {
+            "node": "Process Today's Forecast",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Today's Forecast": {
+      "main": [
+        [
+          {
+            "node": "Rain Expected?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rain Expected?": {
+      "main": [
+        [
+          {
+            "node": "Send Rain Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Weather Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "76801198-0961-43e9-8bf7-aa13b885abfb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "68f5c30cf3b1902265117e71692dde60796adfbd6e3c0a73b841dbf72b2fff6f"
+  },
+  "nodeGroups": [],
+  "id": "wVBnIBqMAfDbNT9z",
+  "tags": []
+}
